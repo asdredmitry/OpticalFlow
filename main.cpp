@@ -14,11 +14,11 @@ const double PI = M_PI;
 const int MAX_COUNT = 500;
 double diff(Point2f & point, Mat & cur,bool x)
 {
-    return (cur.at<double>(point.y + (int)!x ,point.x + (int)x) - cur.at<double>(point.y - (int)!x,point.x - (int)x))/2;
+    return ((double)((double)cur.at<uchar>(point.y + (int)!x ,point.x + (int)x) - (double)cur.at<uchar>(point.y - (int)!x,point.x - (int)x)))/2;
 }
 double diffTime(Point2f & point, Mat & cur, Mat & prev)
 {
-    return (cur.at<double>(point.y,point.x) - prev.at<double>(point.y,point.x))/2;
+    return ((double)cur.at<uchar>(point.y,point.x) - (double)prev.at<uchar>(point.y,point.x))/2;
 }
 void opticalFlowOpenCV(VideoCapture & cap)
 {
@@ -68,12 +68,22 @@ void opticalFlowOpenCV(VideoCapture & cap)
              }
         }
         points[1].resize(k);
-        std :: cout << points[1].size() << " points size" << std :: endl;
+        //std :: cout << points[1].size() << " points size" << std :: endl;
         imshow("OpticalFlow",image);
         waitKey(10);
         std :: swap(points[1],points[0]);
         cv :: swap(prevGray,gray);
     }
+}
+void printMatrix(const Mat & matrix)
+{
+    for(int i = 0; i < matrix.rows; i++)
+    {
+        for(int j = 0; j < matrix.cols; j++)
+            std :: cout << (double)matrix.at<double>(i,j) << " " ;
+        std :: cout << std :: endl;
+    }
+    std :: cout << std :: endl;
 }
 void calcOpticalFlowLK(Mat & prevGray, Mat & gray, vector<Point2f> & pointsCurrent, vector<Point2f> & pointsNext, Size & winSize)
 {
@@ -87,26 +97,36 @@ void calcOpticalFlowLK(Mat & prevGray, Mat & gray, vector<Point2f> & pointsCurre
         Mat B;
         for(int i1 = 0; i1 < winSize.height; i1++)
         {
-            for(int  j = 0; j < winSize.width; j++)
+            for(int j = 0; j < winSize.width; j++)
             {
-                A.at<double>(i1*j,0) = diff(current,gray,true);
-                A.at<double>(i1*j,1) = diff(current,gray,false);
-                b.at<double>(i1*j,0) = diffTime(current,gray,prevGray);
+                Point2f tpq;
+                tpq.y = current.y + i1 - winSize.height/2;
+                tpq.x = current.x + j - winSize.width/2;
+                A.at<double>(i1*winSize.width + j,0) = diff(tpq,gray,true);
+                A.at<double>(i1*winSize.width + j,1) = diff(tpq,gray,false);
+                b.at<double>(i1*winSize.width + j,0) = diffTime(tpq,gray,prevGray);
             }
         }
+        //printMatrix(A);
         transpose(A,B);
-        multiply(B,A,tmp);
+        //printMatrix(B);
+        //std :: cout << B.cols << " cols rows " << B.rows << std :: endl;
+        //std :: cout << A.cols << " cols rows " << A.rows << std :: endl;
+        tmp = B*A;
         B = tmp.clone();
+        //printMatrix(B);
         if(fabs(determinant(B)) > eps)
         {
-            tmp = B.inv();
+            transpose(A,tmp);
+            A = tmp.clone();
+            tmp = B*A;
             B = tmp.clone();
-            multiply(B,A,tmp);
-            B = tmp.clone();
-            multiply(B,b,tmp);
-            B = tmp.clone();
-            Point2f pt(B.at<double>(1,0),B.at<double>(0,0));
-            pointsNext.push_back(*i + pt);
+            tmp = B*b;
+            //printMatrix(tmp);
+            Point2f pt(tmp.at<double>(0,1),tmp.at<double>(0,0));
+            pt.x /= sqrt(pow(pt.x,2) + pow(pt.y,2));
+            pt.y /= sqrt(pow(pt.x,2) + pow(pt.y,2));
+            pointsNext.push_back(pt);
         }
         else
         {
@@ -117,12 +137,42 @@ void calcOpticalFlowLK(Mat & prevGray, Mat & gray, vector<Point2f> & pointsCurre
 void opticalFlowMyOwn(VideoCapture cap)
 {
     Mat frame;
-    Mat framePrev;
-    vector<Point2f> pointsCurrent,pointsPrev;
-
+    Mat grayCurrent,grayPrev;
+    vector<Point2f> pointsCurrent,pointsNext;
+    Size winSize(10,10);
+    bool first = true;
+    namedWindow("MLC");
     while(1)
     {
-
+        cap >> frame;
+        if(frame.empty())
+        {
+            std :: cout << " end of file" << std :: endl;
+            return ;
+        }
+        cvtColor(frame,grayCurrent,CV_RGB2GRAY);
+        if(grayPrev.empty())
+            grayPrev = grayCurrent.clone();
+        if(first)
+        {
+            for(int i = 1; i < 10; i++)
+            {
+                for(int j = 1; j < 10; j++)
+                {
+                    Point2f tmp;
+                    tmp.x = j*(grayCurrent.cols/10);
+                    tmp.y = i*(grayCurrent.rows/10);
+                    pointsCurrent.push_back(tmp);
+                }
+            }
+        }
+        calcOpticalFlowLK(grayPrev,grayCurrent,pointsCurrent,pointsNext,winSize);
+        for(int i = 0; i < pointsCurrent.size(); i++)
+        {
+            line(frame,pointsCurrent[i],pointsCurrent[i] + 10*pointsNext[i],Scalar(200,100,180),2);
+       }
+        imshow("MLC",frame);
+        waitKey(10);
     }
 }
 int main(int argc, char ** argv)
@@ -146,6 +196,7 @@ int main(int argc, char ** argv)
         std :: cout << "Cannot open video flow" << std :: endl;
         return 0;
     }
-    opticalFlowOpenCV(cap);
+    //opticalFlowOpenCV(cap);
+    opticalFlowMyOwn(cap);
     return 0;
 }
