@@ -87,10 +87,9 @@ void printMatrix(const Mat & matrix)
 }
 void calcOpticalFlowLK(Mat & prevGray, Mat & gray, vector<Point2f> & pointsCurrent, vector<Point2f> & pointsNext, Size & winSize)
 {
-    pointsNext.clear();
-    for(vector<Point2f> :: iterator i = pointsCurrent.begin(); i < pointsCurrent.end(); i++)
+    for(int i = 0; i < pointsCurrent.size(); i++)
     {
-        Point2f current = *i;
+        Point2f current = pointsCurrent[i];
         Mat A(winSize.area(),2,CV_64F);
         Mat b(winSize.area(),1,CV_64F);
         Mat tmp;
@@ -119,18 +118,23 @@ void calcOpticalFlowLK(Mat & prevGray, Mat & gray, vector<Point2f> & pointsCurre
         {
             transpose(A,tmp);
             A = tmp.clone();
+            //printMatrix(B);
+            tmp = B.inv();
+            //std :: cout << "inverse matrix" << std :: endl;
+            B = tmp.clone();
             tmp = B*A;
             B = tmp.clone();
             tmp = B*b;
             //printMatrix(tmp);
+            //printMatrix(tmp);
             Point2f pt(tmp.at<double>(0,1),tmp.at<double>(0,0));
             pt.x /= sqrt(pow(pt.x,2) + pow(pt.y,2));
             pt.y /= sqrt(pow(pt.x,2) + pow(pt.y,2));
-            pointsNext.push_back(pt);
+            pointsNext[i] = pt;
         }
         else
         {
-            pointsNext.push_back(*i);
+            pointsNext[i] = pointsCurrent[i];
         }
     }
 }
@@ -138,8 +142,12 @@ void opticalFlowMyOwn(VideoCapture cap)
 {
     Mat frame;
     Mat grayCurrent,grayPrev;
+    vector<Point2f> pointsTmp;
     vector<Point2f> pointsCurrent,pointsNext;
-    Size winSize(10,10);
+    TermCriteria termcrit(TermCriteria::COUNT |  TermCriteria::EPS,20,0.001);
+    Size subPixWinSize(10,10);
+    Size winSize(30,30);
+    //Size winSize(10,10);
     bool first = true;
     namedWindow("MLC");
     while(1)
@@ -155,9 +163,9 @@ void opticalFlowMyOwn(VideoCapture cap)
             grayPrev = grayCurrent.clone();
         if(first)
         {
-            for(int i = 1; i < 10; i++)
+            for(int i = 1; i < 5; i++)
             {
-                for(int j = 1; j < 10; j++)
+                for(int j = 1; j < 5; j++)
                 {
                     Point2f tmp;
                     tmp.x = j*(grayCurrent.cols/10);
@@ -165,11 +173,22 @@ void opticalFlowMyOwn(VideoCapture cap)
                     pointsCurrent.push_back(tmp);
                 }
             }
+            pointsNext = pointsCurrent;
         }
-        calcOpticalFlowLK(grayPrev,grayCurrent,pointsCurrent,pointsNext,winSize);
-        for(int i = 0; i < pointsCurrent.size(); i++)
+        pointsTmp = pointsCurrent;
+        //pointsCurrent.clear();
+        //goodFeaturesToTrack(grayCurrent,pointsTmp,5,0.01,10,Mat(),3,3,0,0.4);
+        //cornerSubPix(grayCurrent,pointsTmp,subPixWinSize,Size(-1,-1),termcrit);
+        for(int i = 0; i < pointsTmp.size(); i++)
         {
-            line(frame,pointsCurrent[i],pointsCurrent[i] + 10*pointsNext[i],Scalar(200,100,180),2);
+                pointsTmp[i].x += (int)(pointsTmp[i].x < 40)*(40) - (int)(pointsTmp[i].x > grayCurrent.cols - 40)*(40);
+                pointsTmp[i].y += (int)(pointsTmp[i].y < 40)*(40) - (int)(pointsTmp[i].y > grayCurrent.rows - 40)*(40);
+        }
+        pointsNext = pointsTmp;
+        calcOpticalFlowLK(grayPrev,grayCurrent,pointsTmp,pointsNext,winSize);
+        for(int i = 0; i < pointsTmp.size(); i++)
+        {
+            line(frame,pointsTmp[i],pointsTmp[i] + 10*pointsNext[i],Scalar(200,100,180),2);
        }
         imshow("MLC",frame);
         waitKey(10);
