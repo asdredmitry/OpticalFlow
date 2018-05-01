@@ -22,6 +22,14 @@ double diffTime(Point2f & point, Mat & cur, Mat & prev)
 {
     return ((double)cur.at<uchar>(point.y,point.x) - (double)prev.at<uchar>(point.y,point.x))/2;
 }
+void drawArrow(Mat & mat, Point2f  pt1, Point2f  pt2, Scalar sc)
+{
+    Point2f v = (pt2 - pt1)/norm(pt1 - pt2);
+    Point2f end = pt1 + 15*v;
+    line(mat, pt1, end, sc, 1.5);
+    line(mat, end, Point2f(end.x - 2*(v.x*cos(M_PI/4) + v.y*sin(M_PI/4)), end.y - 2*(-v.x*sin(M_PI/4) + v.y*cos(M_PI/4))), sc, 1.5);
+    line(mat, end, Point2f(end.x - 2*(v.x*cos(M_PI/4) - v.y*sin(M_PI/4)), end.y - 2*(v.x*sin(M_PI/4) + v.y*cos(M_PI/4))), sc, 1.5);
+}
 void opticalFlowOpenCV(VideoCapture & cap)
 {
     TermCriteria termcrit(TermCriteria::COUNT | TermCriteria::EPS,20,0.001);
@@ -89,7 +97,8 @@ void opticalFlowOpenCV(VideoCapture & cap)
                //double tmp = myOwnVector[i].x;
                //myOwnVector[i].x = -myOwnVector[i].y;
                //myOwnVector[i].y = tmp;
-               line(image,points[0][i],points[0][i] - 20*myOwnVector[i],Scalar(200,100,180),2);
+               //line(image,points[0][i],points[0][i] - 20*myOwnVector[i],Scalar(200,100,180),2);
+                drawArrow(image,points[0][i], points[0][i] - 20*myOwnVector[i], Scalar(200, 100, 200));
             }
         }
         points[1].resize(k);
